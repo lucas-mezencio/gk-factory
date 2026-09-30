@@ -54,6 +54,7 @@ class FabricaBuilder:
         self.catalogo = catalogo
         self.contador_instancias = 0
         self.total_maquinas = Counter()
+        self.nos_instanciados = {}
         self.dot = Digraph(
             name="LinhaProducao",
             format="png",
@@ -67,11 +68,11 @@ class FabricaBuilder:
         )
 
     def resolver_item(self, item, qtd_desejada=1):
-        """
-        Gera recursivamente as máquinas e esteiras necessárias para produzir 'item'.
-        Retorna o node_id que cuspiu o item pronto.
-        """
-        # Caso Base: Não tem receita cadastrada -> É recurso bruto (Mina/Estoque)
+        # 1. Se essa máquina (ou estoque) já existe no chão de fábrica, REAPROVEITA!
+        if item in self.nos_instanciados:
+            return self.nos_instanciados[item]
+
+        # 2. Caso Base: Matéria-prima bruta (Mina/Estoque)
         if item not in self.catalogo:
             self.contador_instancias += 1
             raw_id = f"raw_{self.contador_instancias}"
@@ -84,9 +85,11 @@ class FabricaBuilder:
                 fillcolor="#E1F5FE",
                 color="#0288D1",
             )
+            # Salva no cache pra não criar dois baús do mesmo minério
+            self.nos_instanciados[item] = raw_id
             return raw_id
 
-        # Caso Recursivo: Tem receita -> Instancia uma máquina física dedicada
+        # 3. Caso de Produção: Cria a máquina UMA ÚNICA VEZ
         dados = self.catalogo[item]
         bancada = dados["bancada"]
 
@@ -97,50 +100,74 @@ class FabricaBuilder:
         item_label = item.replace("_", " ").title()
         self.dot.node(
             maquina_id,
-            label=f"{bancada}\n(Fazendo: {item_label})",
+            label=f"{bancada}\n(Faz: {item_label})",
             shape="box",
             fillcolor="#FFF3E0",
             color="#F57C00",
         )
 
-        # Desce a árvore para cada insumo necessário
+        # Registra no cache IMEDIATAMENTE antes de descer pros filhos
+        # (isso evita loop infinito caso alguém faça cagada de dependência cíclica)
+        self.nos_instanciados[item] = maquina_id
+
+        # Desce a esteira pros insumos normalmente
         for insumo, qtd_insumo in dados["insumos"].items():
             origem_id = self.resolver_item(insumo, qtd_insumo)
             insumo_label = insumo.replace("_", " ").title()
 
-            # Conecta a esteira da máquina fornecedora para esta máquina
+            # Aqui tá a mágica: a aresta sai da máquina existente e chega nessa nova
             self.dot.edge(
                 origem_id, maquina_id, label=f" {qtd_insumo}x {insumo_label} "
             )
 
         return maquina_id
 
-    def compilar(self, item_alvo, arquivo_saida="linha_montagem"):
-        # Resolve a cascata a partir do item raiz
-        no_raiz = self.resolver_item(item_alvo)
-
-        # Adiciona um nó de saída final (o baú onde cai o produto pronto)
+    def compilar_projeto(
+        self, demandas, nome_projeto="Reforma da Casa", arquivo_saida="projeto_fabrica"
+    ):
+        """
+        Gera a malha completa para atender uma lista de demandas agregadas.
+        demandas: dict com formato {"item_alvo": quantidade_necessaria}
+        """
+        # 1. Cria o Super-Sink (o objetivo unificado da entrega)
         self.contador_instancias += 1
-        sink_id = f"sink_{self.contador_instancias}"
-        alvo_label = item_alvo.replace("_", " ").title()
+        master_sink_id = f"project_{self.contador_instancias}"
 
         self.dot.node(
-            sink_id,
-            label=f"Saída Final\n[{alvo_label}]",
-            shape="cylinder",
-            fillcolor="#E8F5E9",
-            color="#388E3C",
+            master_sink_id,
+            label=f"OBJETIVO FINAL\n★ {nome_projeto} ★",
+            shape="doubleoctagon",
+            fillcolor="#C8E6C9",
+            color="#2E7D32",
+            penwidth="2.0",
         )
-        self.dot.edge(no_raiz, sink_id, label=f" Pronto: {alvo_label} ")
 
-        # Renderiza a imagem
+        print(f"\n==========================================")
+        print(f" PROJETO: {nome_projeto.upper()}")
+        print(f"==========================================")
+        print("Demandas cadastradas:")
+        for item, qtd in demandas.items():
+            print(f"  -> {qtd}x {item.replace('_', ' ').title()}")
+
+        # 2. Resolve cada linha de produto do projeto
+        for item, qtd in demandas.items():
+            # A recursão desce e monta o miolo (ou reaproveita se já existir)
+            maquina_produtora = self.resolver_item(item)
+            item_label = item.replace("_", " ").title()
+
+            # Conecta a máquina final direto na entrega do projeto
+            self.dot.edge(
+                maquina_produtora,
+                master_sink_id,
+                label=f" Entregar: {qtd}x {item_label} ",
+                color="#2E7D32",
+                penwidth="1.8",
+            )
+
+        # 3. Compila a imagem unificada
         self.dot.render(arquivo_saida, view=True)
 
-        # Relatório de contabilidade de obras de fábrica
-        print(f"\n==========================================")
-        print(f" LINHA DE MONTAGEM: {alvo_label.upper()}")
-        print(f"==========================================")
-        print("Total de máquinas físicas que você precisa construir:")
+        print("\nTotal de máquinas físicas consolidadas no chão de fábrica:")
         for maq, total in sorted(self.total_maquinas.items()):
             print(f"  -> {maq}: {total}x")
         print("==========================================\n")
@@ -149,8 +176,14 @@ class FabricaBuilder:
 def main():
     builder = FabricaBuilder(RECEITAS)
 
-    # Testa trocar por "iron_kit_1" ou "reinforced_kit"
-    builder.compilar("reinforced_kit")
+    # Lista de compras pra reformar a casa do coveiro:
+    materiais_casa = {
+        "building_kit_2": 6,
+        "furniture_kit_2": 6,
+        "sculpture_kit_2": 6,
+    }
+
+    builder.compilar_projeto(materiais_casa, nome_projeto="reformar squares")
 
 
 if __name__ == "__main__":
