@@ -1,0 +1,31 @@
+digraph LinhaProducao {
+	graph [nodesep=0.6 rankdir=LR ranksep=1.0]
+	node [fontname=Helvetica fontsize=10 style="filled, rounded"]
+	edge [color="#455A64" fontname=Helvetica fontsize=9]
+	mach_1 [label="Assembly Table I
+(Fazendo: Reinforced Kit)" color="#F57C00" fillcolor="#FFF3E0" shape=box]
+	mach_2 [label="Assembly Table I
+(Fazendo: Iron Kit 1)" color="#F57C00" fillcolor="#FFF3E0" shape=box]
+	mach_3 [label="Forgery I
+(Fazendo: Iron Ingot)" color="#F57C00" fillcolor="#FFF3E0" shape=box]
+	raw_4 [label="Estoque
+[Iron Ore]" color="#0288D1" fillcolor="#E1F5FE" shape=folder]
+	raw_4 -> mach_3 [label=" 1x Iron Ore "]
+	raw_5 [label="Estoque
+[Coal]" color="#0288D1" fillcolor="#E1F5FE" shape=folder]
+	raw_5 -> mach_3 [label=" 1x Coal "]
+	mach_3 -> mach_2 [label=" 1x Iron Ingot "]
+	mach_2 -> mach_1 [label=" 1x Iron Kit 1 "]
+	mach_6 [label="Assembly Table I
+(Fazendo: Wooden Support)" color="#F57C00" fillcolor="#FFF3E0" shape=box]
+	mach_7 [label="Sawmill
+(Fazendo: Plank)" color="#F57C00" fillcolor="#FFF3E0" shape=box]
+	raw_8 [label="Estoque
+[Wood Log]" color="#0288D1" fillcolor="#E1F5FE" shape=folder]
+	raw_8 -> mach_7 [label=" 1x Wood Log "]
+	mach_7 -> mach_6 [label=" 2x Plank "]
+	mach_6 -> mach_1 [label=" 2x Wooden Support "]
+	sink_9 [label="Saída Final
+[Reinforced Kit]" color="#388E3C" fillcolor="#E8F5E9" shape=cylinder]
+	mach_1 -> sink_9 [label=" Pronto: Reinforced Kit "]
+}
